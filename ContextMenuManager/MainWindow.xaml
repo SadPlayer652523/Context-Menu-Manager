@@ -13,8 +13,6 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="Context Menu Manager" FontSize="18" FontWeight="Bold" Margin="0,0,0,10" Grid.Row="0"/>
-
         <ListBox x:Name="ContextMenuList" Grid.Row="1" Margin="0,0,0,10"/>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
