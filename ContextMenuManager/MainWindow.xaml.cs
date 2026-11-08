@@ -1,20 +1,21 @@
-﻿using Microsoft.Win32;
+﻿using ControlzEx.Theming;
+using MahApps.Metro.Controls;
+using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
-using System.Windows.Interop;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using MahApps.Metro.Controls;
-using ControlzEx.Theming;
 
 namespace ContextMenuManager
 {
@@ -31,6 +32,7 @@ namespace ContextMenuManager
         private string registryPath = @"HKEY_CLASSES_ROOT\*\shellex\ContextMenuHandlers\";
         private string registryClassesRoot = @"*\shellex\ContextMenuHandlers\";
         private string targetName = "all";
+        private string restoreTarget = "all";
 
         public MainWindow()
         {
@@ -39,8 +41,14 @@ namespace ContextMenuManager
             this.Loaded += (s, e) =>
             {
                 LoadContextMenus();
+                LoadRestoreFiles();
             };
-            SystemEvents.UserPreferenceChanged += (s, e) => {
+            if (IsRunningAsAdmin())
+            {
+                this.Title = "Context Menu Manager (Administrator)";
+            }
+            SystemEvents.UserPreferenceChanged += (s, e) =>
+            {
                 if (e.Category == UserPreferenceCategory.General)
                 {
                     Dispatcher.Invoke(ApplyDarkTitleBar);
@@ -51,6 +59,7 @@ namespace ContextMenuManager
         private void OnRefreshButtonPressed(object sender, RoutedEventArgs e)
         {
             LoadContextMenus();
+            LoadRestoreFiles();
         }
 
         private void OnDisableButtonPressed(object sender, RoutedEventArgs e)
@@ -93,7 +102,7 @@ namespace ContextMenuManager
                 }
             }
         }
-        
+
         private void LoadContextMenus()
         {
             if (ContextMenuList == null || PathLabel == null) return;
@@ -209,6 +218,116 @@ namespace ContextMenuManager
         private void OnListSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             DisableButton.IsEnabled = ContextMenuList.SelectedItem != null;
+        }
+
+        private void OnRestoreListSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            RestoreButton.IsEnabled = RestoreMenuList.SelectedItem != null;
+        }
+
+        private void LoadRestoreFiles()
+        {
+            if (!Directory.Exists(backupFolder))
+            {
+                Directory.CreateDirectory(backupFolder);
+            }
+
+            if (RestoreMenuList == null || PathLabel == null) return;
+            PathLabel.Text = "Loading...";
+
+            string[] files = Directory.GetFiles(backupFolder, $"backup_{restoreTarget}_*.reg");
+            List<string> menuItems = new List<string>();
+
+            try
+            {
+                foreach (string file in files)
+                {
+                    string fileName = System.IO.Path.GetFileNameWithoutExtension(file);
+
+                    fileName = fileName.Substring(7);
+
+                    if (fileName.StartsWith("all_")) {
+                        fileName = fileName.Substring(4);
+                    }
+                    else if (fileName.StartsWith("directory_")) {
+                        fileName = fileName.Substring(10);
+                    }
+                    else if (fileName.StartsWith("drive_")) {
+                        fileName = fileName.Substring(6);
+                    }
+
+                    menuItems.Add(fileName);
+                }
+                RestoreMenuList.ItemsSource = menuItems;
+                PathLabel.Text = $"{menuItems.Count} items";
+            }
+            catch (System.Exception ex)
+            {
+                MessageBox.Show("Error reading files. Try restarting the application:\n\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void OnRestoreComboBoxChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (RestoreComboBox == null || restoreTarget == null) return;
+
+            switch (RestoreComboBox.SelectedIndex)
+            {
+                case 0:
+                    restoreTarget = "all";
+                    break;
+
+                case 1:
+                    restoreTarget = "directory";
+                    break;
+
+                case 2:
+                    restoreTarget = "drive";
+                    break;
+            }
+
+            LoadRestoreFiles();
+        }
+
+        private void OnRestoreButtonPressed(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(RestoreMenuList.SelectedItem as string))
+            {
+                MessageBox.Show("Select an item first", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            MessageBoxResult result = MessageBox.Show($"Are you sure you want to restore '{RestoreMenuList.SelectedItem as string}'?", "Confirm Restore", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+            if (result == MessageBoxResult.No)
+            {
+                return;
+            }
+
+            if (result == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    string fullPath = backupFolder + @"\backup_" + restoreTarget + "_" + (RestoreMenuList.SelectedItem as string) + ".reg";
+
+                    System.Diagnostics.Process.Start("reg.exe", $"import \"{fullPath}\"").WaitForExit();
+                    MessageBox.Show($"Restored '{RestoreMenuList.SelectedItem as string}'.", $"Restored '{RestoreMenuList.SelectedItem as string}'", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                    LoadRestoreFiles();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Error: " + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+        private bool IsRunningAsAdmin()
+        {
+            using (var identity = System.Security.Principal.WindowsIdentity.GetCurrent())
+            {
+                var principal = new System.Security.Principal.WindowsPrincipal(identity);
+                return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            }
         }
     }
 }
