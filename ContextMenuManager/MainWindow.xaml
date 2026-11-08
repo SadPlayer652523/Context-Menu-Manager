@@ -3,21 +3,46 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         xmlns:local="clr-namespace:ContextMenuManager"
         mc:Ignorable="d"
         Title="Context Menu Manager" Height="450" Width="600">
-    <Grid Margin="10">
+    <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <ListBox x:Name="ContextMenuList" Grid.Row="1" Margin="0,0,0,10"/>
+        <Grid Grid.Row="0" Margin="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button x:Name="RefreshButton" Content="Refresh" Width="80" Height="30" Margin="0,0,10,0" Click="OnRefreshButtonPressed"/>
-            <Button x:Name="DisableButton" Content="Disable Selected" Width="120" Height="30" Click="OnDisableButtonPressed"/>
-        </StackPanel>
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                <ComboBox x:Name="TargetComboBox" Width="100" SelectionChanged="OnTargetComboBoxChanged">
+                    <ComboBoxItem Content="All Files (*)" IsSelected="True"/>
+                    <ComboBoxItem Content="Folders"/>
+                    <ComboBoxItem Content="Drives"/>
+                </ComboBox>
+            </StackPanel>
+
+            <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,10">
+                <Button x:Name="ViewInRegeditButton" Content="View in Registry Editor" Width="100" Height="30" Margin="0,0,5,0" Click="OnViewRegeditPressed"/>
+                <Button x:Name="OpenBackupsButton" Content="Open Backups" Width="100" Height="30" Click="OnOpenBackupsPressed"/>
+            </StackPanel>
+
+            <ListBox x:Name="ContextMenuList" Grid.Row="1" Margin="0,0,0,10" SelectionChanged="OnListSelectionChanged"/>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="RefreshButton" Content="Refresh" Width="80" Height="30" Margin="0,0,10,0" Click="OnRefreshButtonPressed"/>
+                <Button x:Name="DisableButton" Content="Disable" Width="80" Height="30" IsEnabled="False" Click="OnDisableButtonPressed"/>
+            </StackPanel>
+        </Grid>
+
+        <Border x:Name="StatusBar" Grid.Row="1" Background="#F0F0F0">
+            <TextBlock x:Name="PathLabel" Text="Ready" FontSize="12" Foreground="{DynamicResource MahApps.Brushes.Text}" Margin="10,2"/>
+        </Border>
     </Grid>
 </Window>

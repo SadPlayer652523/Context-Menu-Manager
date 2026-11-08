@@ -16,10 +16,8 @@ using System.Runtime.InteropServices;
 using MahApps.Metro.Controls;
 using ControlzEx.Theming;
 
-namespace ContextMenuManager {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
+namespace ContextMenuManager
+{
     public partial class MainWindow : Window
     {
 
@@ -28,18 +26,26 @@ namespace ContextMenuManager {
 
         private const int DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1 = 19;
         private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+        private string backupFolder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "ContextMenuBackups");
+
+        private string registryPath = @"HKEY_CLASSES_ROOT\*\shellex\ContextMenuHandlers\";
+        private string registryClassesRoot = @"*\shellex\ContextMenuHandlers\";
+        private string targetName = "all";
 
         public MainWindow()
         {
             InitializeComponent();
             this.SourceInitialized += (s, e) => ApplyDarkTitleBar();
+            this.Loaded += (s, e) =>
+            {
+                LoadContextMenus();
+            };
             SystemEvents.UserPreferenceChanged += (s, e) => {
                 if (e.Category == UserPreferenceCategory.General)
                 {
                     Dispatcher.Invoke(ApplyDarkTitleBar);
                 }
             };
-            LoadContextMenus();
         }
 
         private void OnRefreshButtonPressed(object sender, RoutedEventArgs e)
@@ -49,14 +55,13 @@ namespace ContextMenuManager {
 
         private void OnDisableButtonPressed(object sender, RoutedEventArgs e)
         {
-            string selectedItem = ContextMenuList.SelectedItem as string;
-            if (string.IsNullOrEmpty(selectedItem))
+            if (string.IsNullOrEmpty(ContextMenuList.SelectedItem as string))
             {
                 MessageBox.Show("Select an item first", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            MessageBoxResult result = MessageBox.Show($"Are you sure you want to disable '{selectedItem}'?\n\nA backup will be created so you can restore it later.", "Confirm Disable", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            MessageBoxResult result = MessageBox.Show($"Are you sure you want to disable '{ContextMenuList.SelectedItem as string}'?\n\nA backup will be created so you can restore it later.", "Confirm Disable", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (result == MessageBoxResult.No)
             {
@@ -67,19 +72,18 @@ namespace ContextMenuManager {
             {
                 try
                 {
-                    string fullPath = @"HKEY_CLASSES_ROOT\*\shellex\ContextMenuHandlers\" + selectedItem;
-                    string backupFolder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "ContextMenuBackups");
+                    string fullPath = registryPath + (ContextMenuList.SelectedItem as string);
 
-                    if (!System.IO.File.Exists(backupFolder))
+                    if (!System.IO.Directory.Exists(backupFolder))
                     {
                         System.IO.Directory.CreateDirectory(backupFolder);
                     }
 
-                    string backupFile = System.IO.Path.Combine(backupFolder, $"backup_{selectedItem}.reg");
+                    string backupFile = System.IO.Path.Combine(backupFolder, $"backup_{targetName}_{ContextMenuList.SelectedItem as string}.reg");
 
                     System.Diagnostics.Process.Start("reg.exe", $"export \"{fullPath}\" \"{backupFile}\" /y").WaitForExit();
-                    Registry.ClassesRoot.DeleteSubKeyTree(@"*\shellex\ContextMenuHandlers\" + selectedItem);
-                    MessageBox.Show($"Disabled '{selectedItem}'.\n\nBackup saved to Documents\\ContextMenuBackups.", $"Disabled '{selectedItem}'", MessageBoxButton.OK, MessageBoxImage.Information);
+                    Registry.ClassesRoot.DeleteSubKeyTree(registryClassesRoot + (ContextMenuList.SelectedItem as string));
+                    MessageBox.Show($"Disabled '{ContextMenuList.SelectedItem as string}'.\n\nBackup saved to Documents\\ContextMenuBackups.", $"Disabled '{ContextMenuList.SelectedItem as string}'", MessageBoxButton.OK, MessageBoxImage.Information);
 
                     LoadContextMenus();
                 }
@@ -92,13 +96,14 @@ namespace ContextMenuManager {
         
         private void LoadContextMenus()
         {
-            List<string> menuItems = new List<string>();
+            if (ContextMenuList == null || PathLabel == null) return;
+            PathLabel.Text = "Loading...";
 
-            string registryPath = @"*\shellex\ContextMenuHandlers";
+            List<string> menuItems = new List<string>();
 
             try
             {
-                using (RegistryKey key = Registry.ClassesRoot.OpenSubKey(registryPath))
+                using (RegistryKey key = Registry.ClassesRoot.OpenSubKey(registryClassesRoot))
                 {
                     if (key != null)
                     {
@@ -110,6 +115,7 @@ namespace ContextMenuManager {
                 }
 
                 ContextMenuList.ItemsSource = menuItems;
+                PathLabel.Text = $"{menuItems.Count} items";
             }
             catch (System.Exception ex)
             {
@@ -130,6 +136,12 @@ namespace ContextMenuManager {
                     if (value != null && (int)value == 0)
                     {
                         useImmersiveDarkMode = 1;
+                        StatusBar.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#333333"));
+                    }
+                    else
+                    {
+                        useImmersiveDarkMode = 0;
+                        StatusBar.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F0F0F0"));
                     }
                 }
             }
@@ -138,6 +150,65 @@ namespace ContextMenuManager {
             {
                 DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_BEFORE_20H1, ref useImmersiveDarkMode, sizeof(int));
             }
+        }
+
+        private void OnTargetComboBoxChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (TargetComboBox == null || registryPath == null) return;
+
+            switch (TargetComboBox.SelectedIndex)
+            {
+                case 0:
+                    registryPath = @"HKEY_CLASSES_ROOT\*\shellex\ContextMenuHandlers\";
+                    registryClassesRoot = @"*\shellex\ContextMenuHandlers\";
+                    targetName = "all";
+                    break;
+
+                case 1:
+                    registryPath = @"HKEY_CLASSES_ROOT\Directory\shellex\ContextMenuHandlers\";
+                    registryClassesRoot = @"Directory\shellex\ContextMenuHandlers\";
+                    targetName = "directory";
+                    break;
+
+                case 2:
+                    registryPath = @"HKEY_CLASSES_ROOT\Drive\shellex\ContextMenuHandlers\";
+                    registryClassesRoot = @"Drive\shellex\ContextMenuHandlers\";
+                    targetName = "drive";
+                    break;
+            }
+
+            LoadContextMenus();
+        }
+
+        private void OnViewRegeditPressed(object sender, RoutedEventArgs e)
+        {
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Applets\Regedit", true))
+            {
+                if (key != null)
+                {
+                    key.SetValue("LastKey", @"Computer\" + registryClassesRoot);
+                }
+            }
+
+            System.Diagnostics.Process.Start("regedit.exe");
+        }
+
+        private void OnOpenBackupsPressed(object sender, RoutedEventArgs e)
+        {
+            if (System.IO.Directory.Exists(backupFolder))
+            {
+                System.Diagnostics.Process.Start("explorer.exe", backupFolder);
+            }
+            else
+            {
+                System.IO.Directory.CreateDirectory(backupFolder);
+                System.Diagnostics.Process.Start("explorer.exe", backupFolder);
+            }
+        }
+
+        private void OnListSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            DisableButton.IsEnabled = ContextMenuList.SelectedItem != null;
         }
     }
 }
