@@ -13,7 +13,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TabControl Grid.Row="0" Background="Transparent" Padding="5,2" Margin="10">
+        <TabControl x:Name="TabControl" Grid.Row="0" Background="Transparent" Padding="5,2" Margin="10" SelectionChanged="OnTabsChanged">
             <TabItem Header="Manage" Background="Transparent" Margin="0,0,2,0">
                 <Grid Grid.Row="0" Margin="10">
                     <Grid.RowDefinitions>
@@ -39,6 +39,10 @@
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button x:Name="RefreshButton" Content="Refresh" Width="80" Height="30" Margin="0,0,10,0" Click="OnRefreshButtonPressed"/>
                         <Button x:Name="DisableButton" Content="Disable" Width="80" Height="30" IsEnabled="False" Click="OnDisableButtonPressed"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Left">
+                        <Button x:Name="GitHubButton" Content="View on GitHub" Width="100" Height="30" Margin="0,0,10,0" Click="OnGitHubButtonPressed"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -66,6 +70,10 @@
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button x:Name="RefreshButtonRestore" Content="Refresh" Width="80" Height="30" Margin="0,0,10,0" Click="OnRefreshButtonPressed"/>
                         <Button x:Name="RestoreButton" Content="Restore" Width="80" Height="30" IsEnabled="False" Click="OnRestoreButtonPressed"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Left">
+                        <Button x:Name="GitHubButtonRestore" Content="View on Github" Width="100" Height="30" Margin="0,0,10,0" Click="OnGitHubButtonPressed"/>
                     </StackPanel>
                 </Grid>
             </TabItem>

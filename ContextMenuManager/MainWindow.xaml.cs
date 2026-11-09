@@ -3,6 +3,7 @@ using MahApps.Metro.Controls;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -41,7 +42,6 @@ namespace ContextMenuManager
             this.Loaded += (s, e) =>
             {
                 LoadContextMenus();
-                LoadRestoreFiles();
             };
             if (IsRunningAsAdmin())
             {
@@ -64,13 +64,14 @@ namespace ContextMenuManager
 
         private void OnDisableButtonPressed(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrEmpty(ContextMenuList.SelectedItem as string))
+            string selectedItem = ContextMenuList.SelectedItem as string;
+            if (string.IsNullOrEmpty(selectedItem))
             {
                 MessageBox.Show("Select an item first", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            MessageBoxResult result = MessageBox.Show($"Are you sure you want to disable '{ContextMenuList.SelectedItem as string}'?\n\nA backup will be created so you can restore it later.", "Confirm Disable", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            MessageBoxResult result = MessageBox.Show($"Are you sure you want to disable '{selectedItem}'?\n\nA backup will be created so you can restore it later.", "Confirm Disable", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (result == MessageBoxResult.No)
             {
@@ -81,7 +82,8 @@ namespace ContextMenuManager
             {
                 try
                 {
-                    string fullPath = registryPath + (ContextMenuList.SelectedItem as string);
+                    PathLabel.Text = $"Disabling {selectedItem}";
+                    string fullPath = registryPath + (selectedItem);
 
                     if (!System.IO.Directory.Exists(backupFolder))
                     {
@@ -91,10 +93,12 @@ namespace ContextMenuManager
                     string backupFile = System.IO.Path.Combine(backupFolder, $"backup_{targetName}_{ContextMenuList.SelectedItem as string}.reg");
 
                     System.Diagnostics.Process.Start("reg.exe", $"export \"{fullPath}\" \"{backupFile}\" /y").WaitForExit();
-                    Registry.ClassesRoot.DeleteSubKeyTree(registryClassesRoot + (ContextMenuList.SelectedItem as string));
-                    MessageBox.Show($"Disabled '{ContextMenuList.SelectedItem as string}'.\n\nBackup saved to Documents\\ContextMenuBackups.", $"Disabled '{ContextMenuList.SelectedItem as string}'", MessageBoxButton.OK, MessageBoxImage.Information);
+                    Registry.ClassesRoot.DeleteSubKeyTree(registryClassesRoot + (selectedItem));
 
-                    LoadContextMenus();
+                    ContextMenuList.SelectionChanged -= OnListSelectionChanged;
+                    LoadContextMenus(false);
+                    ContextMenuList.SelectionChanged += OnListSelectionChanged;
+                    PathLabel.Text = $"{ContextMenuList.Items.Count} items  |  Disabled '{selectedItem}'. Backup saved to Documents\\ContextMenuBackups.";
                 }
                 catch (Exception ex)
                 {
@@ -103,10 +107,9 @@ namespace ContextMenuManager
             }
         }
 
-        private void LoadContextMenus()
+        private void LoadContextMenus(bool updateStatus = true)
         {
             if (ContextMenuList == null || PathLabel == null) return;
-            PathLabel.Text = "Loading...";
 
             List<string> menuItems = new List<string>();
 
@@ -124,7 +127,7 @@ namespace ContextMenuManager
                 }
 
                 ContextMenuList.ItemsSource = menuItems;
-                PathLabel.Text = $"{menuItems.Count} items";
+                if (updateStatus) { PathLabel.Text = $"{menuItems.Count} items"; }
             }
             catch (System.Exception ex)
             {
@@ -218,14 +221,34 @@ namespace ContextMenuManager
         private void OnListSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             DisableButton.IsEnabled = ContextMenuList.SelectedItem != null;
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (ContextMenuList.SelectedItem != null)
+                {
+                    PathLabel.Text = $"{ContextMenuList.Items.Count} items  |  '{ContextMenuList.SelectedItem as string}' selected";
+                }
+            }));
         }
 
         private void OnRestoreListSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             RestoreButton.IsEnabled = RestoreMenuList.SelectedItem != null;
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (RestoreMenuList.SelectedItem != null)
+                {
+                    PathLabel.Text = $"{RestoreMenuList.Items.Count} items  |  '{RestoreMenuList.SelectedItem as string}' selected";
+                }
+                else
+                {
+                    PathLabel.Text = $"{RestoreMenuList.Items.Count} items";
+                }
+            }));
         }
 
-        private void LoadRestoreFiles()
+        private void LoadRestoreFiles(bool updateStatus = true)
         {
             if (!Directory.Exists(backupFolder))
             {
@@ -233,7 +256,6 @@ namespace ContextMenuManager
             }
 
             if (RestoreMenuList == null || PathLabel == null) return;
-            PathLabel.Text = "Loading...";
 
             string[] files = Directory.GetFiles(backupFolder, $"backup_{restoreTarget}_*.reg");
             List<string> menuItems = new List<string>();
@@ -259,7 +281,7 @@ namespace ContextMenuManager
                     menuItems.Add(fileName);
                 }
                 RestoreMenuList.ItemsSource = menuItems;
-                PathLabel.Text = $"{menuItems.Count} items";
+                if (updateStatus) { PathLabel.Text = $"{menuItems.Count} items"; }
             }
             catch (System.Exception ex)
             {
@@ -308,12 +330,13 @@ namespace ContextMenuManager
             {
                 try
                 {
+                    PathLabel.Text = $"Restoring {RestoreMenuList.SelectedItem as string}";
                     string fullPath = backupFolder + @"\backup_" + restoreTarget + "_" + (RestoreMenuList.SelectedItem as string) + ".reg";
 
                     System.Diagnostics.Process.Start("reg.exe", $"import \"{fullPath}\"").WaitForExit();
-                    MessageBox.Show($"Restored '{RestoreMenuList.SelectedItem as string}'.", $"Restored '{RestoreMenuList.SelectedItem as string}'", MessageBoxButton.OK, MessageBoxImage.Information);
+                    PathLabel.Text = $"{RestoreMenuList.Items.Count} items  |  Restored {RestoreMenuList.SelectedItem as string}.";
 
-                    LoadRestoreFiles();
+                    LoadRestoreFiles(false);
                 }
                 catch (Exception ex)
                 {
@@ -321,6 +344,30 @@ namespace ContextMenuManager
                 }
             }
         }
+
+        private void OnTabsChanged(object sender, RoutedEventArgs e)
+        {
+            if (TabControl == null || ContextMenuList == null || RestoreMenuList == null) return;
+
+            if (TabControl.SelectedIndex == 0)
+            {
+                LoadContextMenus();
+            }
+            else if (TabControl.SelectedIndex == 1)
+            {
+                LoadRestoreFiles();
+            }
+        }
+
+        private void OnGitHubButtonPressed(object sender, RoutedEventArgs e)
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "https://www.github.com/SadPlayer652523/Context-Menu-Manager",
+                UseShellExecute = true
+            });
+        }
+
         private bool IsRunningAsAdmin()
         {
             using (var identity = System.Security.Principal.WindowsIdentity.GetCurrent())
